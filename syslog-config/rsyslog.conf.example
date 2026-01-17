@@ -1,0 +1,44 @@
+# rsyslog設定ファイルの例（TLS通信前提）
+# このファイルを /etc/rsyslog.d/99-telegram-crawler.conf にコピーして使用してください
+
+# TLSで受信（ポート6514を使用、RFC 5425推奨）
+$ModLoad imtcp
+$DefaultNetstreamDriver gtls
+$DefaultNetstreamDriverCAFile /etc/ssl/certs/ca-certificates.crt
+$DefaultNetstreamDriverCertFile /etc/ssl/certs/server.crt
+$DefaultNetstreamDriverKeyFile /etc/ssl/private/server.key
+$InputTCPServerStreamDriverMode 1
+$InputTCPServerStreamDriverAuthMode anon
+$InputTCPServerRun 6514
+
+# JSONLメッセージを専用のログファイルに保存
+# アプリケーション名が "telegram-crawler" のメッセージを /var/log/telegram-crawler/ に保存
+if $programname == "telegram-crawler" then {
+    # ログディレクトリを作成（存在しない場合）
+    $CreateDirs on
+    
+    # 日付ごとのログファイルに保存
+    # 形式: /var/log/telegram-crawler/telegram-crawler-YYYY-MM-DD.log
+    action(type="omfile" 
+           file="/var/log/telegram-crawler/telegram-crawler-%$year%-%$month%-%$day%.log"
+           template="RSYSLOG_TraditionalFileFormat")
+    
+    # または、すべてのメッセージを1つのファイルに保存
+    # action(type="omfile" 
+    #        file="/var/log/telegram-crawler/telegram-crawler.log"
+    #        template="RSYSLOG_TraditionalFileFormat")
+    
+    # さらに、JSONL形式で保存する場合（メッセージ部分のみ）
+    # action(type="omfile" 
+    #        file="/var/log/telegram-crawler/telegram-crawler-raw.log"
+    #        template="RSYSLOG_ForwardFormat")
+    
+    # 処理を停止（他のログファイルに重複して書き込まないように）
+    stop
+}
+
+# カスタムテンプレート（JSONL形式で保存する場合）
+# $template jsonlFormat,"%msg%\n"
+# action(type="omfile" 
+#        file="/var/log/telegram-crawler/telegram-crawler-raw.log"
+#        template="jsonlFormat")
