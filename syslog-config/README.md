@@ -41,19 +41,19 @@
 
 4. ログディレクトリを作成：
    ```bash
-   sudo mkdir -p /var/log/telegram-crawler
-   sudo chown syslog:syslog /var/log/telegram-crawler
+   sudo mkdir -p /srv/logs/telegram-crawler
+   sudo chown syslog:syslog /srv/logs/telegram-crawler
    ```
 
-4. rsyslogを再起動：
+5. rsyslogを再起動：
    ```bash
    sudo systemctl restart rsyslog
    ```
 
-5. 設定を確認：
+6. 設定を確認：
    ```bash
    sudo systemctl status rsyslog
-   sudo tail -f /var/log/telegram-crawler/telegram-crawler-*.log
+   sudo tail -f /srv/logs/telegram-crawler/telegram-crawler-*.jsonl
    ```
 
 ## クライアント側の設定
@@ -91,7 +91,7 @@ echo '{"test": "message"}' > test.jsonl
 python jsonl_to_syslog.py test.jsonl --host your-syslog-server.example.com --port 6514 --protocol tls --ca-cert /path/to/ca.crt --app-name telegram-crawler
 
 # syslogサーバ側でログを確認
-sudo tail -f /var/log/telegram-crawler/telegram-crawler-*.log
+sudo tail -f /srv/logs/telegram-crawler/telegram-crawler-*.jsonl
 ```
 
 ## ポート番号
@@ -106,7 +106,7 @@ sudo tail -f /var/log/telegram-crawler/telegram-crawler-*.log
 
 設定例では、**カスタムテンプレートを使用してJSONL形式で保存**します：
 
-- `/var/log/telegram-crawler/telegram-crawler-YYYY-MM-DD.jsonl`: 日付ごとのJSONLファイル（推奨）
+- `/srv/logs/telegram-crawler/telegram-crawler-YYYY-MM-DD.jsonl`: 日付ごとのJSONLファイル（推奨）
   - メッセージ部分（JSON文字列）のみを抽出して保存
   - 元のJSONLファイルと同じ形式で保存されるため、後でJSONLとして処理しやすい
 
@@ -150,6 +150,13 @@ TLSを使用する場合は、適切な証明書を設定してください：
 
 ## トラブルシューティング
 
+### 設定エラーが発生する場合
+
+1. **rsyslog v8対応**: この設定ファイルはrsyslog v8のRainerScript構文を使用しています
+2. **global()ブロックの重複**: 他の設定ファイルで既に`global()`でTLS設定がされている場合、このファイル内の`global()`ブロックはコメントアウトしてください
+3. **imtcpモジュールの重複ロード**: `module 'imtcp' already in this config`エラーが出る場合、`module(load="imtcp")`の行をコメントアウトしてください
+4. **rulesetの定義順序**: `ruleset`は`input`より前に定義する必要があります（設定ファイル内で既に正しい順序になっています）
+
 ### ログが受信されない場合
 
 1. rsyslogが正しく起動しているか確認：
@@ -157,21 +164,26 @@ TLSを使用する場合は、適切な証明書を設定してください：
    sudo systemctl status rsyslog
    ```
 
-2. ポートが開いているか確認：
+2. 設定ファイルの構文チェック：
+   ```bash
+   sudo rsyslogd -N1
+   ```
+
+3. ポートが開いているか確認：
    ```bash
    sudo netstat -tlnp | grep 6514
    # または
    sudo ss -tlnp | grep 6514
    ```
 
-3. ファイアウォール設定を確認
+4. ファイアウォール設定を確認
 
-4. ログファイルの権限を確認：
+5. ログファイルの権限を確認：
    ```bash
-   ls -la /var/log/telegram-crawler/
+   ls -la /srv/logs/telegram-crawler/
    ```
 
-5. rsyslogのログを確認：
+6. rsyslogのログを確認：
    ```bash
    sudo journalctl -u rsyslog -f
    ```

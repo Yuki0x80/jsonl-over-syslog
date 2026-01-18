@@ -26,13 +26,13 @@ template(name="jsonlFormat" type="string" string="%msg%\n")
 # inputより前に定義する必要があります
 ruleset(name="telegram_crawler_ruleset") {
     # JSONLメッセージを専用のログファイルに保存
-    # アプリケーション名が "telegram-crawler" のメッセージを /var/log/telegram-crawler/ に保存
+    # アプリケーション名が "telegram-crawler" のメッセージを /srv/logs/telegram-crawler/ に保存
     if ($programname == "telegram-crawler") then {
         # 日付ごとのJSONLファイルに保存（推奨）
-        # 形式: /var/log/telegram-crawler/telegram-crawler-YYYY-MM-DD.jsonl
+        # 形式: /srv/logs/telegram-crawler/telegram-crawler-YYYY-MM-DD.jsonl
         action(
             type="omfile"
-            file="/var/log/telegram-crawler/telegram-crawler-%$YEAR%-%$MONTH%-%$DAY%.jsonl"
+            file="/srv/logs/telegram-crawler/telegram-crawler-%$YEAR%-%$MONTH%-%$DAY%.jsonl"
             template="jsonlFormat"
             createDirs="on"
         )
@@ -40,7 +40,7 @@ ruleset(name="telegram_crawler_ruleset") {
         # または、すべてのメッセージを1つのファイルに保存
         # action(
         #     type="omfile"
-        #     file="/var/log/telegram-crawler/telegram-crawler.jsonl"
+        #     file="/srv/logs/telegram-crawler/telegram-crawler.jsonl"
         #     template="jsonlFormat"
         #     createDirs="on"
         # )
@@ -65,7 +65,7 @@ input(
 # if $programname == "telegram-crawler" then {
 #     $CreateDirs on
 #     action(type="omfile" 
-#            file="/var/log/telegram-crawler/telegram-crawler-%$year%-%$month%-%$day%.log"
+#            file="/srv/logs/telegram-crawler/telegram-crawler-%$year%-%$month%-%$day%.log"
 #            template="RSYSLOG_TraditionalFileFormat")
 #     stop
 # }
