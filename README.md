@@ -325,7 +325,11 @@ sudo systemctl enable --now telegram-crawler.timer
 sudo systemctl status telegram-crawler.timer
 ```
 
-このサービスは、telegram-crawler実行後に自動的にsyslog送信を行います。
+このサービスは、以下の動作を行います：
+- telegram-crawlerを実行
+- outputに生成された最新のJSONLファイルをそのままsyslog経由で送信
+- 10分ごとに自動実行
+- PC再起動後も自動実行される（Persistent=true）
 
 詳細は`deploy/README.md`を参照してください。
 

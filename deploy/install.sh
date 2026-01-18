@@ -56,9 +56,14 @@ if [ -f "$SCRIPT_DIR/systemd/telegram-crawler.service" ]; then
     
     sudo systemctl daemon-reload
     echo "   telegram-crawlerサービスファイルをインストールしました"
+    echo ""
     echo "   有効化するには: sudo systemctl enable --now telegram-crawler.timer"
-    echo "   注意: telegram-crawlerサービスはラッパースクリプトを使用し、"
-    echo "         telegram-crawler実行後に自動的にsyslog送信を行います（10分ごとに実行）"
+    echo ""
+    echo "   動作:"
+    echo "   - telegram-crawlerを実行"
+    echo "   - outputに生成された最新のJSONLファイルをsyslog経由で送信"
+    echo "   - 10分ごとに自動実行"
+    echo "   - PC再起動後も自動実行される（Persistent=true）"
 else
     echo "5. telegram-crawlerサービスファイルが見つかりません（スキップ）"
 fi

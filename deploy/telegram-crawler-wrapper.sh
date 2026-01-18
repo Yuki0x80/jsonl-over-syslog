@@ -32,11 +32,11 @@ else
     exit 1
 fi
 
-# 処理完了後、最新のファイルを送信
-echo "2. 最新のJSONLファイルをsyslog経由で送信..."
+# 処理完了後、前回実行以降に作成されたファイルを自動的に処理
+echo "2. 前回実行以降に作成されたJSONLファイルをsyslog経由で送信..."
 if [ -f "$JSONL_TO_SYSLOG" ]; then
     # 前回実行以降に作成されたファイルを自動的に処理
-    # --dirオプションにより、最新のファイルのみが送信される
+    # --dirオプションにより、前回実行以降に作成されたファイルのみが送信される
     echo "   送信対象ディレクトリ: $OUTPUT_DIR"
     python3 "$JSONL_TO_SYSLOG" --dir "$OUTPUT_DIR" --state-file "$STATE_FILE"
     

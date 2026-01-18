@@ -32,8 +32,9 @@ sudo journalctl -u telegram-crawler.service -f
 
 この方法では：
 1. telegram-crawlerが10分ごとに自動実行される
-2. 処理完了後、最新のJSONLファイルが自動的にsyslog経由で送信される
-3. systemdでログ管理が可能
+2. 処理完了後、outputに生成された最新のJSONLファイルをそのままsyslog経由で送信
+3. PC再起動後も自動実行される（Persistent=true）
+4. systemdでログ管理が可能
 
 ### 方法2: ラッパースクリプトを直接実行
 
