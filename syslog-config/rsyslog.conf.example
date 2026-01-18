@@ -2,43 +2,70 @@
 # このファイルを /etc/rsyslog.d/99-telegram-crawler.conf にコピーして使用してください
 
 # TLSで受信（ポート6514を使用、RFC 5425推奨）
-$ModLoad imtcp
-$DefaultNetstreamDriver gtls
-$DefaultNetstreamDriverCAFile /etc/ssl/certs/ca-certificates.crt
-$DefaultNetstreamDriverCertFile /etc/ssl/certs/server.crt
-$DefaultNetstreamDriverKeyFile /etc/ssl/private/server.key
-$InputTCPServerStreamDriverMode 1
-$InputTCPServerStreamDriverAuthMode anon
-$InputTCPServerRun 6514
+# RainerScript構文（rsyslog v8対応）
+# 
+# 注意: 
+# - imtcpモジュールは他の設定ファイル（例: 01-tls.conf）で既にロードされている
+# - global()ブロックはrsyslog全体のグローバル設定です
+# - 他の設定ファイル（例: 01-tls.conf）で既にglobal()でTLS設定がされている場合は、
+#   このglobal()ブロックは不要です（削除またはコメントアウトしてください）
+# - このファイルが独立して動作する必要がある場合は、global()ブロックを残してください
+#
+# global(
+#     DefaultNetstreamDriver="gtls"
+#     DefaultNetstreamDriverCAFile="/etc/rsyslog/tls/ca.crt"
+#     DefaultNetstreamDriverCertFile="/etc/rsyslog/tls/server.crt"
+#     DefaultNetstreamDriverKeyFile="/etc/rsyslog/tls/server.key"
+# )
 
-# JSONLメッセージを専用のログファイルに保存
-# アプリケーション名が "telegram-crawler" のメッセージを /var/log/telegram-crawler/ に保存
-if $programname == "telegram-crawler" then {
-    # ログディレクトリを作成（存在しない場合）
-    $CreateDirs on
-    
-    # 日付ごとのログファイルに保存
-    # 形式: /var/log/telegram-crawler/telegram-crawler-YYYY-MM-DD.log
-    action(type="omfile" 
-           file="/var/log/telegram-crawler/telegram-crawler-%$year%-%$month%-%$day%.log"
-           template="RSYSLOG_TraditionalFileFormat")
-    
-    # または、すべてのメッセージを1つのファイルに保存
-    # action(type="omfile" 
-    #        file="/var/log/telegram-crawler/telegram-crawler.log"
-    #        template="RSYSLOG_TraditionalFileFormat")
-    
-    # さらに、JSONL形式で保存する場合（メッセージ部分のみ）
-    # action(type="omfile" 
-    #        file="/var/log/telegram-crawler/telegram-crawler-raw.log"
-    #        template="RSYSLOG_ForwardFormat")
-    
-    # 処理を停止（他のログファイルに重複して書き込まないように）
-    stop
+# カスタムテンプレート: メッセージ部分（JSON文字列）のみを抽出
+# これにより、元のJSONLファイルと同じ形式で保存できます
+template(name="jsonlFormat" type="string" string="%msg%\n")
+
+# Ruleset: telegram-crawler用のルールセット
+# inputより前に定義する必要があります
+ruleset(name="telegram_crawler_ruleset") {
+    # JSONLメッセージを専用のログファイルに保存
+    # アプリケーション名が "telegram-crawler" のメッセージを /var/log/telegram-crawler/ に保存
+    if ($programname == "telegram-crawler") then {
+        # 日付ごとのJSONLファイルに保存（推奨）
+        # 形式: /var/log/telegram-crawler/telegram-crawler-YYYY-MM-DD.jsonl
+        action(
+            type="omfile"
+            file="/var/log/telegram-crawler/telegram-crawler-%$YEAR%-%$MONTH%-%$DAY%.jsonl"
+            template="jsonlFormat"
+            createDirs="on"
+        )
+        
+        # または、すべてのメッセージを1つのファイルに保存
+        # action(
+        #     type="omfile"
+        #     file="/var/log/telegram-crawler/telegram-crawler.jsonl"
+        #     template="jsonlFormat"
+        #     createDirs="on"
+        # )
+        
+        # 処理を停止（他のログファイルに重複して書き込まないように）
+        stop
+    }
 }
 
-# カスタムテンプレート（JSONL形式で保存する場合）
-# $template jsonlFormat,"%msg%\n"
-# action(type="omfile" 
-#        file="/var/log/telegram-crawler/telegram-crawler-raw.log"
-#        template="jsonlFormat")
+# imtcpモジュールが既にロードされている場合は、この行をコメントアウトしてください
+# module(load="imtcp")
+
+# TLSでTCP接続を受信
+input(
+    type="imtcp"
+    port="6514"
+    ruleset="telegram_crawler_ruleset"
+)
+
+# 標準テンプレートを使用する場合（syslogヘッダーも含む）
+# メタデータ（タイムスタンプ、ホスト名など）も必要な場合に使用
+# if $programname == "telegram-crawler" then {
+#     $CreateDirs on
+#     action(type="omfile" 
+#            file="/var/log/telegram-crawler/telegram-crawler-%$year%-%$month%-%$day%.log"
+#            template="RSYSLOG_TraditionalFileFormat")
+#     stop
+# }

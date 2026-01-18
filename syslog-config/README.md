@@ -1,95 +1,58 @@
 # Syslogサーバ設定ファイル
 
-このディレクトリには、syslogサーバ側の設定ファイル例が含まれています。
+このディレクトリには、rsyslogサーバ側の設定ファイル例が含まれています。
 
 ## ファイル一覧
 
 - `rsyslog.conf.example`: rsyslog用の設定ファイル例
-- `syslog-ng.conf.example`: syslog-ng用の設定ファイル例
 
 ## 使用方法
 
-### rsyslogの場合
+0. **rsyslog-gnutlsパッケージをインストール**（TLSを使用する場合）：
+   ```bash
+   sudo apt update
+   sudo apt install rsyslog-gnutls
+   ```
+   これにより`gtls`モジュールが利用可能になります。
 
 1. 設定ファイルをコピー：
    ```bash
    sudo cp syslog-config/rsyslog.conf.example /etc/rsyslog.d/99-telegram-crawler.conf
    ```
 
-2. TLS証明書を設定：
-   - CA証明書: `/etc/ssl/certs/ca-certificates.crt`
-   - サーバ証明書: `/etc/ssl/certs/server.crt`
-   - サーバ秘密鍵: `/etc/ssl/private/server.key`
-   - 必要に応じてパスを変更してください
+2. **設定ファイルの確認と調整**：
+   - 他の設定ファイル（例: `01-tls.conf`）で既に`global()`ブロックでTLS設定がされている場合、`99-telegram-crawler.conf`内の`global()`ブロックはコメントアウトされています（そのままで問題ありません）
+   - `imtcp`モジュールが既にロードされている場合、`module(load="imtcp")`の行もコメントアウトされています（そのままで問題ありません）
+   - このファイルを独立して使用する場合は、コメントアウトされている`global()`ブロックを有効化してください
 
-3. ログディレクトリを作成：
+3. TLS証明書を設定：
+   - CA証明書: `/etc/rsyslog/tls/ca.crt`
+   - サーバ証明書: `/etc/rsyslog/tls/server.crt`
+   - サーバ秘密鍵: `/etc/rsyslog/tls/server.key`
+   - 証明書ファイルを配置してください：
+     ```bash
+     sudo mkdir -p /etc/rsyslog/tls
+     sudo cp ca.crt /etc/rsyslog/tls/
+     sudo cp server.crt /etc/rsyslog/tls/
+     sudo cp server.key /etc/rsyslog/tls/
+     sudo chmod 600 /etc/rsyslog/tls/server.key
+     sudo chown root:root /etc/rsyslog/tls/*
+     ```
+
+4. ログディレクトリを作成：
    ```bash
    sudo mkdir -p /var/log/telegram-crawler
    sudo chown syslog:syslog /var/log/telegram-crawler
    ```
 
-3. rsyslogを再起動：
+4. rsyslogを再起動：
    ```bash
    sudo systemctl restart rsyslog
    ```
 
-4. 設定を確認：
+5. 設定を確認：
    ```bash
    sudo systemctl status rsyslog
-   sudo tail -f /var/log/telegram-crawler/telegram-crawler-*.log
-   ```
-
-### syslog-ngの場合
-
-1. **TLS証明書を準備**：
-   ```bash
-   # 証明書ファイルが存在するか確認
-   ls -la /etc/ssl/certs/server.crt
-   ls -la /etc/ssl/private/server.key
-   ls -la /etc/ssl/certs/ca-certificates.crt
-   
-   # 存在しない場合は証明書を生成するか、既存の証明書を使用してください
-   # 証明書のパスは設定ファイル内で変更できます
-   ```
-
-2. **設定ファイルをコピー**：
-   ```bash
-   sudo cp syslog-config/syslog-ng.conf.example /etc/syslog-ng/conf.d/telegram-crawler.conf
-   ```
-
-3. **証明書パスの確認と修正**（必要に応じて）：
-   ```bash
-   sudo nano /etc/syslog-ng/conf.d/telegram-crawler.conf
-   # 証明書のパスを実際の環境に合わせて修正
-   ```
-
-4. **ログディレクトリを作成**：
-   ```bash
-   sudo mkdir -p /var/log/telegram-crawler
-   sudo chown syslog:syslog /var/log/telegram-crawler
-   sudo chmod 755 /var/log/telegram-crawler
-   ```
-
-5. **syslog-ngの設定を確認**：
-   ```bash
-   sudo syslog-ng -s
-   # エラーがないことを確認
-   ```
-
-6. **syslog-ngを再起動**：
-   ```bash
-   sudo systemctl restart syslog-ng
-   ```
-
-7. **設定を確認**：
-   ```bash
-   # syslog-ngの状態を確認
-   sudo systemctl status syslog-ng
-   
-   # ポート6514がリッスンしているか確認
-   sudo ss -tlnp | grep 6514
-   
-   # ログファイルを監視
    sudo tail -f /var/log/telegram-crawler/telegram-crawler-*.log
    ```
 
@@ -141,13 +104,26 @@ sudo tail -f /var/log/telegram-crawler/telegram-crawler-*.log
 
 ## ログファイルの保存先
 
-設定例では、以下のディレクトリにログファイルを保存します：
+設定例では、**カスタムテンプレートを使用してJSONL形式で保存**します：
 
-- `/var/log/telegram-crawler/telegram-crawler-YYYY-MM-DD.log`: 日付ごとのログファイル
-- `/var/log/telegram-crawler/telegram-crawler.log`: すべてのメッセージを1つのファイルに保存（コメントアウト）
-- `/var/log/telegram-crawler/telegram-crawler-raw.log`: JSONL形式でメッセージ部分のみ保存（コメントアウト）
+- `/var/log/telegram-crawler/telegram-crawler-YYYY-MM-DD.jsonl`: 日付ごとのJSONLファイル（推奨）
+  - メッセージ部分（JSON文字列）のみを抽出して保存
+  - 元のJSONLファイルと同じ形式で保存されるため、後でJSONLとして処理しやすい
 
-必要に応じて、設定ファイルを編集して保存先を変更してください。
+### カスタムテンプレート vs 標準テンプレート
+
+**カスタムテンプレート（推奨）**:
+- メッセージ部分（JSON文字列）のみを抽出
+- 元のJSONLファイルと同じ形式
+- JSONLとして処理しやすい
+- ファイル拡張子: `.jsonl`
+
+**標準テンプレート**:
+- syslogヘッダー（タイムスタンプ、ホスト名など）も含む
+- メタデータが必要な場合に使用
+- ファイル拡張子: `.log`
+
+必要に応じて、設定ファイルを編集して保存先やテンプレートを変更してください。
 
 ## セキュリティ
 
@@ -176,11 +152,9 @@ TLSを使用する場合は、適切な証明書を設定してください：
 
 ### ログが受信されない場合
 
-1. rsyslog/syslog-ngが正しく起動しているか確認：
+1. rsyslogが正しく起動しているか確認：
    ```bash
    sudo systemctl status rsyslog
-   # または
-   sudo systemctl status syslog-ng
    ```
 
 2. ポートが開いているか確認：
@@ -197,9 +171,7 @@ TLSを使用する場合は、適切な証明書を設定してください：
    ls -la /var/log/telegram-crawler/
    ```
 
-5. rsyslog/syslog-ngのログを確認：
+5. rsyslogのログを確認：
    ```bash
    sudo journalctl -u rsyslog -f
-   # または
-   sudo journalctl -u syslog-ng -f
    ```
