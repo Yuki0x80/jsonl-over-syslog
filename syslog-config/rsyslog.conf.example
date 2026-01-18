@@ -10,6 +10,9 @@
 # - 他の設定ファイル（例: 01-tls.conf）で既にglobal()でTLS設定がされている場合は、
 #   このglobal()ブロックは不要です（削除またはコメントアウトしてください）
 # - このファイルが独立して動作する必要がある場合は、global()ブロックを残してください
+# - 他の設定ファイルで既に同じポート番号（例: 6514）でinput()が定義されている場合、
+#   このinput()ブロックは不要です（削除またはコメントアウトしてください）
+# - 同じポート番号を複数回指定するとエラーになります
 #
 # global(
 #     DefaultNetstreamDriver="gtls"
@@ -22,6 +25,11 @@
 # これにより、元のJSONLファイルと同じ形式で保存できます
 template(name="jsonlFormat" type="string" string="%msg%\n")
 
+# 動的ファイル名テンプレート: 日付を含むファイル名
+# 形式: /srv/logs/telegram-crawler/telegram-crawler-YYYY-MM-DD.jsonl
+template(name="telegramCrawlerLogFile" type="string"
+         string="/srv/logs/telegram-crawler/telegram-crawler-%$YEAR%-%$MONTH%-%$DAY%.jsonl")
+
 # Ruleset: telegram-crawler用のルールセット
 # inputより前に定義する必要があります
 ruleset(name="telegram_crawler_ruleset") {
@@ -29,16 +37,16 @@ ruleset(name="telegram_crawler_ruleset") {
     # アプリケーション名が "telegram-crawler" のメッセージを /srv/logs/telegram-crawler/ に保存
     if ($programname == "telegram-crawler") then {
         # 日付ごとのJSONLファイルに保存（推奨）
-        # 形式: /srv/logs/telegram-crawler/telegram-crawler-YYYY-MM-DD.jsonl
+        # dynaFileパラメータを使用して動的ファイル名を指定
         action(
             type="omfile"
-            file="/srv/logs/telegram-crawler/telegram-crawler-%$YEAR%-%$MONTH%-%$DAY%.jsonl"
+            dynaFile="telegramCrawlerLogFile"
             template="jsonlFormat"
             createDirs="on"
         )
         
         # または、すべてのメッセージを1つのファイルに保存
-        # action(
+        # srv/logssrvsrv/logs
         #     type="omfile"
         #     file="/srv/logs/telegram-crawler/telegram-crawler.jsonl"
         #     template="jsonlFormat"
@@ -54,6 +62,10 @@ ruleset(name="telegram_crawler_ruleset") {
 # module(load="imtcp")
 
 # TLSでTCP接続を受信
+# 注意: 
+# - 他の設定ファイルで既に同じポート番号（6514）でinput()が定義されている場合は、
+#   このinput()ブロックをコメントアウトまたは削除してください
+# - 異なるポート番号（例: rsyslog.confで5140、このファイルで6514）の場合は問題ありません
 input(
     type="imtcp"
     port="6514"

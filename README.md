@@ -18,9 +18,27 @@ JSONL（JSON Lines）形式のデータをログ集約用サーバにsyslog経�
 このツールはPython 3.6以上で動作します。追加の依存関係は必要ありません（標準ライブラリのみを使用）。
 
 ```bash
+# Python 3がインストールされているか確認
+python3 --version
+
 # 実行権限を付与
 chmod +x jsonl_to_syslog.py
+chmod +x test_send_logs.sh  # テストスクリプトにも実行権限を付与
 ```
+
+**注意**: Ubuntu 20.04以降では、`python`コマンドがデフォルトでインストールされていません。以下のいずれかの方法で対応してください：
+
+1. **`python3`コマンドを使用**（推奨）:
+   ```bash
+   python3 jsonl_to_syslog.py data.jsonl
+   ```
+
+2. **`python-is-python3`パッケージをインストール**（`python`コマンドを使いたい場合）:
+   ```bash
+   sudo apt update
+   sudo apt install python-is-python3
+   ```
+   これにより、`python`コマンドが`python3`を指すようになります。
 
 ## 使用方法
 
@@ -35,9 +53,9 @@ SYSLOG_PORT=5140
 SYSLOG_PROTOCOL=tcp
 
 # TLS設定（オプション）
-# SYSLOG_CA_CERT=ca.crt
-# SYSLOG_CLIENT_CERT=client.crt
-# SYSLOG_CLIENT_KEY=client.key
+# SYSLOG_CA_CERT=/etc/ssl/certs/ca.crt          # CA証明書のパス（推奨: /etc/ssl/certs/）
+# SYSLOG_CLIENT_CERT=/etc/ssl/certs/client.crt  # クライアント証明書のパス
+# SYSLOG_CLIENT_KEY=/etc/ssl/private/client.key  # クライアント秘密鍵のパス（推奨: /etc/ssl/private/）
 # SYSLOG_NO_VERIFY=false
 
 # その他の設定（オプション）
@@ -49,38 +67,67 @@ SYSLOG_PROTOCOL=tcp
 
 環境変数はコマンドライン引数より優先度が低く、コマンドライン引数で上書きできます。
 
+### テストスクリプトの使用方法
+
+ログ送信をテストするためのスクリプト `test_send_logs.sh` が用意されています。
+
+```bash
+# テストスクリプトを実行
+./test_send_logs.sh
+```
+
+このスクリプトは以下を実行します：
+1. テスト用のJSONLファイルを作成
+2. `.env`ファイルから設定を読み込み（存在する場合）
+3. ログを送信
+4. 送信結果を表示
+5. サーバ側での確認方法を表示
+
+**事前準備**:
+- `.env`ファイルを作成して設定を記述（オプション、デフォルト値で動作）
+- TLSを使用する場合、CA証明書のパスを`.env`に設定
+
+**実行例**:
+```bash
+# .envファイルがある場合
+./test_send_logs.sh
+
+# .envファイルがない場合（デフォルト設定で動作）
+./test_send_logs.sh
+```
+
 ### 基本的な使い方
 
 ```bash
 # ローカルのsyslogサーバにTCPで送信（デフォルト: ポート5140）
-python jsonl_to_syslog.py data.jsonl
+python3 jsonl_to_syslog.py data.jsonl
 
 # リモートサーバに送信
-python jsonl_to_syslog.py data.jsonl --host logs.example.com --port 5140
+python3 jsonl_to_syslog.py data.jsonl --host logs.example.com --port 5140
 
 # UDPプロトコルを使用
-python jsonl_to_syslog.py data.jsonl --host logs.example.com --port 514 --protocol udp
+python3 jsonl_to_syslog.py data.jsonl --host logs.example.com --port 514 --protocol udp
 
 # TLSで送信（CA証明書を使用してサーバ証明書を検証）
-python jsonl_to_syslog.py data.jsonl --host logs.example.com --port 6514 --protocol tls --ca-cert ca.crt
+python3 jsonl_to_syslog.py data.jsonl --host logs.example.com --port 6514 --protocol tls --ca-cert ca.crt
 
 # TLSで送信（クライアント証明書も使用）
-python jsonl_to_syslog.py data.jsonl --host logs.example.com --port 6514 --protocol tls --ca-cert ca.crt --client-cert client.crt --client-key client.key
+python3 jsonl_to_syslog.py data.jsonl --host logs.example.com --port 6514 --protocol tls --ca-cert ca.crt --client-cert client.crt --client-key client.key
 
 # 標準入力から読み込み
-cat data.jsonl | python jsonl_to_syslog.py -
+cat data.jsonl | python3 jsonl_to_syslog.py -
 
 # telegram-crawlerの出力ファイルを送信
-python jsonl_to_syslog.py /Users/yuki/Desktop/git_code/telegram-crawler/output/20260118_053532_telegram_messages.jsonl
+python3 jsonl_to_syslog.py /path/to/telegram-crawler/output/20260118_053532_telegram_messages.jsonl
 
 # ワイルドカードを使用して複数ファイルを送信（シェルで展開）
-python jsonl_to_syslog.py /Users/yuki/Desktop/git_code/telegram-crawler/output/*.jsonl
+python3 jsonl_to_syslog.py /path/to/telegram-crawler/output/*.jsonl
 
 # ディレクトリを指定して、前回実行以降に作成されたファイルを自動的に処理（日付ベース）
-python jsonl_to_syslog.py --dir /Users/yuki/Desktop/git_code/telegram-crawler/output
+python3 jsonl_to_syslog.py --dir /path/to/telegram-crawler/output
 
 # 状態ファイルのパスを指定
-python jsonl_to_syslog.py --dir /Users/yuki/Desktop/git_code/telegram-crawler/output --state-file /tmp/.last_run
+python3 jsonl_to_syslog.py --dir /path/to/telegram-crawler/output --state-file /tmp/.last_run
 ```
 
 ### オプション
@@ -115,18 +162,65 @@ python jsonl_to_syslog.py data.jsonl --delay 0.1
 python jsonl_to_syslog.py data.jsonl --app-name myapp --severity 4
 
 # TLSで送信（証明書検証を無効化、非推奨）
-python jsonl_to_syslog.py data.jsonl --host logs.example.com --port 6514 --protocol tls --no-verify
+python3 jsonl_to_syslog.py data.jsonl --host logs.example.com --port 6514 --protocol tls --no-verify
 ```
 
 ### TLS接続について
 
 TLSプロトコルを使用する場合、以下の証明書オプションが利用できます：
 
-- **CA証明書（`--ca-cert`）**: ログ集約サーバの証明書を検証するために使用します。サーバから提供されたCA証明書ファイルを指定してください。
-- **クライアント証明書（`--client-cert`、`--client-key`）**: サーバがクライアント認証を要求する場合に使用します。両方を指定する必要があります。
+- **CA証明書（`--ca-cert`）**: ログ集約サーバの証明書を検証するために使用します。サーバから提供されたCA証明書ファイルを指定してください。**通常はこれだけで十分です。**
+- **クライアント証明書（`--client-cert`、`--client-key`）**: サーバがクライアント認証を要求する場合のみ使用します。両方を指定する必要があります。**通常は不要です。**
 - **証明書検証の無効化（`--no-verify`）**: 開発・テスト環境でのみ使用してください。本番環境では使用しないことを強く推奨します。
 
-一般的なsyslog over TLSのポート番号は6514です（RFC 5425で推奨）。
+**一般的な使用方法（クライアント証明書不要）**:
+```bash
+# CA証明書のみで送信（推奨）
+python3 jsonl_to_syslog.py data.jsonl --host logs.example.com --port 6514 --protocol tls --ca-cert /etc/ssl/certs/ca.crt
+```
+
+**ポート番号**: 
+- **TCP/UDP**: デフォルトは5140です
+- **TLS**: 6514（RFC 5425推奨）を使用してください
+
+#### 証明書ファイルの配置場所（Ubuntuサーバ）
+
+**サーバ側（rsyslog）**:
+- CA証明書: `/etc/rsyslog/tls/ca.crt`
+- サーバ証明書: `/etc/rsyslog/tls/server.crt`
+- サーバ秘密鍵: `/etc/rsyslog/tls/server.key`
+
+**クライアント側（jsonl_to_syslog.py）**:
+- **推奨場所**（CA証明書のみ、クライアント証明書不要）:
+  - CA証明書: `/etc/ssl/certs/ca.crt` または `/usr/local/share/ca-certificates/ca.crt`
+
+- **その他の選択肢**:
+  - プロジェクトディレクトリ内: `./certs/ca.crt`（相対パス）
+  - ユーザーディレクトリ: `~/certs/ca.crt`
+  - 任意の場所: `.env`ファイルで絶対パスを指定
+
+**証明書ファイルの配置例**:
+```bash
+# サーバ側
+sudo mkdir -p /etc/rsyslog/tls
+sudo cp ca.crt /etc/rsyslog/tls/
+sudo cp server.crt /etc/rsyslog/tls/
+sudo cp server.key /etc/rsyslog/tls/
+sudo chmod 600 /etc/rsyslog/tls/server.key
+sudo chown root:root /etc/rsyslog/tls/*
+
+# クライアント側（CA証明書のみ、推奨）
+sudo mkdir -p /etc/ssl/certs
+sudo cp ca.crt /etc/ssl/certs/
+sudo chmod 644 /etc/ssl/certs/ca.crt
+sudo chown root:root /etc/ssl/certs/ca.crt
+
+# .envファイルの設定例（クライアント証明書不要）
+SYSLOG_CA_CERT=/etc/ssl/certs/ca.crt
+# SYSLOG_CLIENT_CERT と SYSLOG_CLIENT_KEY は指定不要（コメントアウトまたは削除）
+```
+
+**注意**: クライアント証明書は、サーバがクライアント認証を要求する場合のみ必要です。通常はCA証明書のみで送信できます。
 
 ## JSONLファイル形式
 

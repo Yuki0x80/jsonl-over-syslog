@@ -23,6 +23,8 @@
 2. **設定ファイルの確認と調整**：
    - 他の設定ファイル（例: `01-tls.conf`）で既に`global()`ブロックでTLS設定がされている場合、`99-telegram-crawler.conf`内の`global()`ブロックはコメントアウトされています（そのままで問題ありません）
    - `imtcp`モジュールが既にロードされている場合、`module(load="imtcp")`の行もコメントアウトされています（そのままで問題ありません）
+   - **重要**: 他の設定ファイルで既に**同じポート番号**（例: 6514）で`input()`が定義されている場合、このファイル内の`input()`ブロックをコメントアウトまたは削除してください。同じポート番号を複数回指定するとエラーになります
+   - **異なるポート番号**（例: `rsyslog.conf`で5140、`99-telegram-crawler.conf`で6514）の場合は問題ありません。それぞれ独立して動作します
    - このファイルを独立して使用する場合は、コメントアウトされている`global()`ブロックを有効化してください
 
 3. TLS証明書を設定：
@@ -71,9 +73,10 @@ SYSLOG_PROTOCOL=tls
 SYSLOG_PORT=6514
 
 # CA証明書のパス（サーバ証明書を検証するために必要）
-SYSLOG_CA_CERT=/path/to/ca.crt
+# 通常はこれだけで十分です（クライアント証明書は不要）
+SYSLOG_CA_CERT=/etc/ssl/certs/ca.crt
 
-# クライアント認証が必要な場合（オプション）
+# クライアント認証が必要な場合のみ（通常は不要）
 # SYSLOG_CLIENT_CERT=/path/to/client.crt
 # SYSLOG_CLIENT_KEY=/path/to/client.key
 
@@ -87,8 +90,8 @@ SYSLOG_APP_NAME=telegram-crawler
 # テスト用のJSONLファイルを作成
 echo '{"test": "message"}' > test.jsonl
 
-# syslogサーバに送信（TLS）
-python jsonl_to_syslog.py test.jsonl --host your-syslog-server.example.com --port 6514 --protocol tls --ca-cert /path/to/ca.crt --app-name telegram-crawler
+# syslogサーバに送信（TLS、CA証明書のみで送信）
+python3 jsonl_to_syslog.py test.jsonl --host your-syslog-server.example.com --port 6514 --protocol tls --ca-cert /etc/ssl/certs/ca.crt --app-name telegram-crawler
 
 # syslogサーバ側でログを確認
 sudo tail -f /srv/logs/telegram-crawler/telegram-crawler-*.jsonl
@@ -159,31 +162,71 @@ TLSを使用する場合は、適切な証明書を設定してください：
 
 ### ログが受信されない場合
 
-1. rsyslogが正しく起動しているか確認：
+#### 接続タイムアウトエラーの場合
+
+1. **rsyslogが正しく起動しているか確認**：
    ```bash
    sudo systemctl status rsyslog
    ```
 
-2. 設定ファイルの構文チェック：
+2. **設定ファイルの構文チェック**：
    ```bash
    sudo rsyslogd -N1
    ```
 
-3. ポートが開いているか確認：
+3. **ポートがリッスンしているか確認**（サーバ側）：
    ```bash
+   # ポート6514がリッスンしているか確認
    sudo netstat -tlnp | grep 6514
    # または
    sudo ss -tlnp | grep 6514
+   
+   # 期待される出力例:
+   # tcp  0  0  0.0.0.0:6514  0.0.0.0:*  LISTEN  12345/rsyslogd
    ```
 
-4. ファイアウォール設定を確認
+4. **ファイアウォール設定を確認**（サーバ側）：
+   ```bash
+   # UFWの場合
+   sudo ufw status | grep 6514
+   # 開いていない場合
+   sudo ufw allow 6514/tcp
+   
+   # firewalldの場合
+   sudo firewall-cmd --list-ports | grep 6514
+   # 開いていない場合
+   sudo firewall-cmd --add-port=6514/tcp --permanent
+   sudo firewall-cmd --reload
+   ```
 
-5. ログファイルの権限を確認：
+5. **ネットワーク接続を確認**（クライアント側）：
+   ```bash
+   # サーバへの接続をテスト
+   telnet 10.0.0.103 6514
+   # または
+   nc -zv 10.0.0.103 6514
+   ```
+
+6. **rsyslogのログを確認**（サーバ側）：
+   ```bash
+   sudo journalctl -u rsyslog -f
+   ```
+
+7. **TLS設定を確認**：
+   - 証明書ファイルが正しいパスに存在するか確認
+   - 証明書の権限が正しいか確認（`ls -la /etc/rsyslog/tls/`）
+   - `global()`ブロックでTLS設定が正しくされているか確認
+
+#### その他の問題
+
+8. **ログファイルの権限を確認**：
    ```bash
    ls -la /srv/logs/telegram-crawler/
    ```
 
-6. rsyslogのログを確認：
+9. **rsyslogの設定を再読み込み**：
    ```bash
-   sudo journalctl -u rsyslog -f
+   sudo systemctl reload rsyslog
+   # または
+   sudo systemctl restart rsyslog
    ```
