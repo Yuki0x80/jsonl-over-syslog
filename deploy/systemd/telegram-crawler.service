@@ -1,0 +1,18 @@
+[Unit]
+Description=Telegram Crawler with Syslog Integration
+Documentation=https://github.com/Yuki0x80/jsonl-over-syslog
+After=network.target
+
+[Service]
+Type=oneshot
+User=telegram-crawler
+Group=telegram-crawler
+WorkingDirectory=/opt/telegram-crawler
+EnvironmentFile=-/opt/telegram-crawler/.env
+# ラッパースクリプトを実行（telegram-crawler実行後、自動的にsyslog送信）
+ExecStart=/opt/telegram-crawler/deploy/telegram-crawler-wrapper.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

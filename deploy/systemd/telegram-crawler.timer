@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Telegram Crawler every 10 minutes
+Requires=telegram-crawler.service
+
+[Timer]
+OnCalendar=*:0/10
+Persistent=true
+
+[Install]
+WantedBy=timers.target

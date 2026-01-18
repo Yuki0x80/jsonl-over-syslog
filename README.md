@@ -242,23 +242,39 @@ JSONLファイルは各行が独立したJSONオブジェクトである必要�
 
 [telegram-crawler](https://github.com/Yuki0x80/telegram-crawler)が出力するJSONLファイルをsyslog経由で送信できます：
 
+### 方法1: 処理完了直後に自動送信（推奨）
+
+telegram-crawlerの処理完了直後に自動的に送信するラッパースクリプトを使用：
+
+```bash
+# ラッパースクリプトを使用（telegram-crawler実行後、自動的に送信）
+./deploy/telegram-crawler-wrapper.sh [telegram-crawlerの引数]
+
+# 例: telegram-crawlerの通常の実行方法をそのまま使用
+./deploy/telegram-crawler-wrapper.sh --channel example_channel
+```
+
+この方法では、telegram-crawlerの処理が完了した直後に、最新のJSONLファイルが自動的に送信されます。
+
+### 方法2: 手動で送信
+
 ```bash
 # telegram-crawlerの出力ファイルを直接送信
-python jsonl_to_syslog.py /path/to/telegram-crawler/output/20260118_053532_telegram_messages.jsonl
+python3 jsonl_to_syslog.py /path/to/telegram-crawler/output/20260118_053532_telegram_messages.jsonl
 
 # 複数のファイルを送信（シェルで展開）
-python jsonl_to_syslog.py /path/to/telegram-crawler/output/*.jsonl
+python3 jsonl_to_syslog.py /path/to/telegram-crawler/output/*.jsonl
 
 # ディレクトリを指定して、前回実行以降に作成されたファイルを自動的に処理（推奨）
 # 初回実行時は、ディレクトリ内のすべてのJSONLファイルを処理
 # 2回目以降は、前回実行以降に作成されたファイルのみを処理
-python jsonl_to_syslog.py --dir /path/to/telegram-crawler/output
+python3 jsonl_to_syslog.py --dir /path/to/telegram-crawler/output
 
 # 状態ファイルのパスを指定（デフォルト: .last_run）
-python jsonl_to_syslog.py --dir /path/to/telegram-crawler/output --state-file /tmp/.last_run
+python3 jsonl_to_syslog.py --dir /path/to/telegram-crawler/output --state-file /tmp/.last_run
 
 # .envファイルで設定済みの場合
-python jsonl_to_syslog.py --dir /path/to/telegram-crawler/output
+python3 jsonl_to_syslog.py --dir /path/to/telegram-crawler/output
 ```
 
 telegram-crawlerが出力する複雑なJSON構造（`from_id`、`sender_user`などのネストしたオブジェクト）も、データ破損なく正しく送信されます。
@@ -292,11 +308,32 @@ python3 --version
 chmod +x jsonl_to_syslog.py
 ```
 
-### Cronでの定期実行
+### デプロイメント方法
 
-このツールは、Cronなどで定期実行することを想定して設計されています。`--dir`オプションを使用することで、前回実行以降に作成されたファイルのみを自動的に処理できます。
+#### 方法1: systemdサービスを使用（推奨）
 
-#### Cron設定例
+Infrastructure as Code（IaC）的な観点から、systemdサービスファイルが用意されています：
+
+```bash
+# インストールスクリプトを実行
+sudo ./deploy/install.sh
+
+# telegram-crawlerサービスを有効化（10分ごとに実行）
+sudo systemctl enable --now telegram-crawler.timer
+
+# 状態を確認
+sudo systemctl status telegram-crawler.timer
+```
+
+このサービスは、telegram-crawler実行後に自動的にsyslog送信を行います。
+
+詳細は`deploy/README.md`を参照してください。
+
+#### 方法2: Cronを使用
+
+Cronでの定期実行も可能です。`--dir`オプションを使用することで、前回実行以降に作成されたファイルのみを自動的に処理できます。
+
+##### Cron設定例
 
 ```bash
 # crontabを編集

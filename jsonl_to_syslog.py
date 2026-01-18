@@ -11,9 +11,12 @@ import socket
 import ssl
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, List
+
+# JST (Japan Standard Time) = UTC+9
+JST = timezone(timedelta(hours=9))
 
 
 class SyslogSender:
@@ -130,8 +133,8 @@ class SyslogSender:
         # Version
         version = "1"
         
-        # Timestamp (RFC 3339 format)
-        timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        # Timestamp (RFC 3339 format, JST)
+        timestamp = datetime.now(JST).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "+09:00"
         
         # Hostname
         hostname = socket.gethostname()
