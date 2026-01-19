@@ -209,3 +209,5 @@ __marimo__/
 # Application state files
 .last_run
 *.last_run
+
+.DS_Store
