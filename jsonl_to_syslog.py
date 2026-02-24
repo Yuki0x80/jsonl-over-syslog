@@ -189,7 +189,7 @@ class SyslogSender:
         except (socket.error, OSError) as e:
             raise OSError(f"syslogメッセージの送信に失敗しました: {e}")
     
-    def send_json(self, json_data: dict, message: Optional[str] = None):
+    def send_json(self, json_data, message: Optional[str] = None):
         """
         JSONデータをsyslog経由で送信
         
@@ -197,7 +197,7 @@ class SyslogSender:
         複雑なJSON構造（ネストしたオブジェクト、配列など）も破損せずに送信できます。
         
         Args:
-            json_data: 送信するJSONデータ（辞書形式）
+            json_data: 送信するJSONデータ（dict, list, str, int 等のJSONシリアライズ可能な型）
             message: カスタムメッセージ（指定しない場合、json_dataをJSON文字列化したものを使用）
         """
         # メッセージ部分にJSON文字列をそのまま入れる（データ破損を防ぐ）
@@ -233,8 +233,8 @@ def send_jsonl_file(
     facility: int = 16,
     severity: int = 6,
     app_name: str = "jsonl-over-syslog",
-        delay: float = 0.0,
-        verbose: bool = False,  # 未使用（互換性のため残す）
+    delay: float = 0.0,
+    verbose: bool = False,  # 未使用（互換性のため残す）
     ca_cert: Optional[str] = None,
     client_cert: Optional[str] = None,
     client_key: Optional[str] = None,
@@ -297,12 +297,11 @@ def send_jsonl_file(
                     if delay > 0:
                         time.sleep(delay)
                         
-                except json.JSONDecodeError:
-                    # JSONパースエラーは無視して続行
-                    pass
+                except json.JSONDecodeError as e:
+                    print(f"警告: JSONパースエラー（スキップ）: {e}", file=sys.stderr)
                 except (OSError, ConnectionError) as e:
-                    # 接続エラーや送信エラーは無視して続行（ログ出力なし）
-                    pass
+                    print(f"警告: 送信エラー: {e}", file=sys.stderr)
+                    raise  # 呼び出し元で再処理のため再送出
         finally:
             if should_close:
                 file_handle.close()
@@ -372,8 +371,7 @@ def save_last_processed_date(state_file: str, date: datetime):
         with open(state_path, 'w', encoding='utf-8') as f:
             f.write(date.isoformat())
     except (OSError, IOError) as e:
-        # ファイル書き込みエラーは無視（ログ出力なし）
-        pass
+        print(f"警告: 状態ファイルの書き込みに失敗しました ({state_file}): {e}", file=sys.stderr)
 
 
 def get_files_since_date(directory: str, since_date: Optional[datetime], pattern: str = "*.jsonl") -> List[Path]:
@@ -393,7 +391,7 @@ def get_files_since_date(directory: str, since_date: Optional[datetime], pattern
         
     Note:
         ディレクトリが存在しない、またはディレクトリでない場合は空のリストを返します。
-        ファイルの作成日時は`st_mtime`（最終更新日時）を使用します。
+        ファイルの選別には`st_mtime`（最終更新日時）を使用します。
     """
     dir_path = Path(directory)
     if not dir_path.exists() or not dir_path.is_dir():
@@ -409,9 +407,8 @@ def get_files_since_date(directory: str, since_date: Optional[datetime], pattern
                 # since_dateが指定されている場合、それ以降のファイルのみ
                 if since_date is None or file_mtime >= since_date:
                     files.append((file_path, file_mtime))
-            except (OSError, PermissionError):
-                # ファイルアクセスエラーは無視して続行
-                pass
+            except (OSError, PermissionError) as e:
+                print(f"警告: ファイルアクセスエラー ({file_path}): {e}", file=sys.stderr)
     
     # 作成日時の昇順でソート
     files.sort(key=lambda x: x[1])
@@ -435,6 +432,13 @@ def send_jsonl_from_directory(
     state_file: Optional[str] = None,
     pattern: str = "*.jsonl"
 ):
+    # コメント: 処理内容の概要
+    # 1. 前回の処理日時を状態ファイル(state_file)から取得する
+    # 2. 指定ディレクトリ内から、前回の処理日時以降に作成されたJSONLファイルを取得する
+    # 3. 取得したファイル群を作成日時の昇順で処理
+    # 4. 各ファイルについて、syslogサーバへ各行を送り、行間に遅延(delay)があれば適用
+    # 5. 最後に最新の処理日時を状態ファイル(state_file)へ保存する（state_file指定時）
+
     """
     指定ディレクトリ内のJSONLファイルを日付ベースで処理してsyslog経由で送信
     
@@ -471,14 +475,7 @@ def send_jsonl_from_directory(
     # 各ファイルを処理
     for file_path in files:
         try:
-            # ファイルの作成日時を取得
-            file_mtime = datetime.fromtimestamp(file_path.stat().st_mtime)
-            
-            # 最新の日時を更新
-            if latest_date is None or file_mtime > latest_date:
-                latest_date = file_mtime
-            
-            # ファイルを送信
+            # ファイルを送信（送信成功時のみ latest_date を更新）
             send_jsonl_file(
                 file_path=str(file_path),
                 syslog_host=syslog_host,
@@ -493,9 +490,13 @@ def send_jsonl_from_directory(
                 client_key=client_key,
                 verify=verify
             )
-        except (OSError, PermissionError, FileNotFoundError):
-            # ファイルアクセスエラーは無視して続行
-            pass
+            # 送信成功時のみ最新の日時を更新（失敗時は次回再処理するため更新しない）
+            file_mtime = datetime.fromtimestamp(file_path.stat().st_mtime)
+            if latest_date is None or file_mtime > latest_date:
+                latest_date = file_mtime
+        except (OSError, PermissionError, FileNotFoundError, ConnectionError) as e:
+            print(f"警告: {file_path} の処理に失敗しました: {e}", file=sys.stderr)
+            raise  # 後続ファイルの処理を止め、last_date を直前の成功分のみで保存する
     
     # 処理完了後、最新の日時を保存
     if state_file and latest_date:
@@ -774,5 +775,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import os
     main()
